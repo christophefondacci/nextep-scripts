@@ -1,0 +1,123 @@
+<project name="com.neXtep.designer" default="build">
+	<path id="svnant.classpath">
+		<pathelement location="./svnant-1.0.0/lib/svnjavahl.jar" />
+		<pathelement location="./svnant-1.0.0/lib/svnant.jar" />
+		<pathelement location="./svnant-1.0.0/lib/svnClientAdapter.jar" />
+	</path>
+	<path id="contrib.classpath">
+		<pathelement location="./ant-contrib-0.6/ant-contrib-0.6.jar" />
+	</path>
+	<taskdef resource="svntask.properties" classpathref="svnant.classpath" />
+	<taskdef resource="net/sf/antcontrib/antcontrib.properties" classpathref="contrib.classpath" />
+
+	<!--sets the path of the properties file-->
+	<tstamp />
+	<property name="neXtepTimestamp" value="${DSTAMP}${TSTAMP}" />
+	<property name="pdeBuildPluginVersion" value="3.6.1.R36x_v20100823" />
+	<property name="equinoxLauncherPluginVersion" value="1.1.0.v20100507" />
+	<property name="eclipseLocation" value="/opt/neXtep/eclipse/eclipse3.6.1" />
+
+	<target name="clean">
+		<delete dir="${buildDirectory}" />
+	</target>
+	<target name="deploy">
+		<delete dir="${neXtepDeployBaseDir}/${neXtepDeployType}" />
+		<mkdir dir="${neXtepDeployBaseDir}/${neXtepDeployType}" />
+		<copy todir="${neXtepDeployBaseDir}/${neXtepDeployType}">
+			<fileset dir="${buildDirectory}/buildRepo" />
+		</copy>
+		<copy todir="${neXtepDownloadDir}">
+			<fileset dir="${buildDirectory}/${buildLabel}">
+				<include name="**/neXtep.*" />
+			</fileset>
+		</copy>
+		<property name="targetBranch" value="${neXtepSvnBranchesRoot}/${neXtepDeployType}.${neXtepRelease}.${neXtepTimestamp}" />
+		<svn>
+			<mkdir url="${targetBranch}" message="Auto-created branch on update publication on ${TODAY}" />
+		</svn>
+		<for param="dir">
+			<path>
+				<dirset dir="${sourceDirectory}">
+					<include name="**/com.neXtep.*" />
+					<include name="**/Apache*" />
+				</dirset>
+			</path>
+			<sequential>
+				<svn>
+					<copy srcpath="@{dir}" destUrl="${targetBranch}" message="Auto-branching for ${neXtepDeployType} publication on ${DSTAMP}${TSTAMP}" />
+				</svn>
+			</sequential>
+		</for>
+	</target>
+	<target name="init">
+		<mkdir dir="${buildDirectory}" />
+		<mkdir dir="${buildDirectory}/plugins" />
+		<mkdir dir="${buildDirectory}/features" />
+		<copy todir="${buildDirectory}/plugins">
+			<fileset dir="${sourceDirectory}">
+				<include name="**/com.neXtep.*/**" />
+				<include name="**/Apache*/**" />
+				<exclude name="**/.metadata" />
+				<exclude name="**/.metadata/**" />
+				<exclude name="**/com.neXtep.designer.feature/**" />
+				<exclude name="**/com.neXtep.designer.headless.feature/**" />
+				<exclude name="**/com.neXtep.designer.update/**" />
+			</fileset>
+		</copy>
+		<copy todir="${buildDirectory}/features">
+			<fileset dir="${sourceDirectory}">
+				<include name="**/com.neXtep.designer.feature/**" />
+				<include name="**/com.neXtep.designer.headless.feature/**" />
+				<exclude name="**/.metadata" />
+				<exclude name="**/.metadata/**" />
+			</fileset>
+		</copy>
+	</target>
+	<target name="svnupdate">
+		<svn>
+			<update dir="${sourceDirectory}" />
+		</svn>
+	</target>
+	<!--
+		This target actually executes the PDE Build process by launching the 
+		Eclipse antRunner application.
+	-->
+	<target name="pde-build">
+		<echo message="${baseLocation}/plugins/org.eclipse.equinox.launcher_${equinoxLauncherPluginVersion}.jar" />
+		<java classname="org.eclipse.equinox.launcher.Main" fork="true" failonerror="true">
+			<arg value="-application" />
+			<arg value="org.eclipse.ant.core.antRunner" />
+			<arg value="-buildfile" />
+			<arg value="${eclipseLocation}/plugins/org.eclipse.pde.build_${pdeBuildPluginVersion}/scripts/productBuild/productBuild.xml" />
+			<arg value="-Dtimestamp=${timestamp}" />
+			<arg value="-DneXtepTimestamp=${neXtepTimestamp}" />
+			<classpath>
+				<pathelement location="${baseLocation}/plugins/org.eclipse.equinox.launcher_${equinoxLauncherPluginVersion}.jar" />
+			</classpath>
+		</java>
+	</target>
+	<target name="openinit">
+		<property name="neXtepDeployBaseDir" value="/var/www/html/p2" />
+		<property name="neXtepDeployType" value="open" />
+		<property file="build.properties" />
+	</target>
+	<target name="vsctinit">
+		<property name="neXtepDeployBaseDir" value="/var/www/html/p2" />
+		<property name="neXtepDeployType" value="vsct" />
+		<property file="build.properties" />
+	</target>
+	<target name="devinit">
+		<property name="neXtepDeployBaseDir" value="/var/www/html/p2" />
+		<property name="neXtepDeployType" value="dev" />
+		<property file="build.properties" />
+	</target>
+	<target name="headlessinit">
+		<property file="headless-build.properties" />
+	</target>
+	<!--This target defines the run-order of the targets-->
+	<target name="build" depends="pde-build" />
+	<target name="deliver" depends="openinit, clean, svnupdate, init, build, deploy" />
+	<target name="vsctdeliver" depends="vsctinit, clean, svnupdate, init, build, deploy" />
+	<target name="devdeliver" depends="devinit, clean, svnupdate, init, build, deploy" />
+	<target name="headless" depends="headlessinit, clean, svnupdate, init, build" />
+</project>
